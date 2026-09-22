@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <Event.h>
+#include <Event/Event.h>
 
 /// Owns the rcdaq Event* for the lifetime of the JEvent it was Insert()'d
 /// into. JEventSourceRCDAQ::Emit() is the "requestor" that called

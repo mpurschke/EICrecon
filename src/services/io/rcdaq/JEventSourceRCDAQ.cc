@@ -12,9 +12,9 @@
 #include <JANA/JEvent.h>
 #include <JANA/JException.h>
 
-#include <Event.h>
-#include <Eventiterator.h>
-#include <fileEventiterator.h>
+#include <Event/Event.h>
+#include <Event/Eventiterator.h>
+#include <Event/fileEventiterator.h>
 
 #include <format>
 

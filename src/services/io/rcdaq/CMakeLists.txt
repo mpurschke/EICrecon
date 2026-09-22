@@ -15,8 +15,12 @@ plugin_glob_all(${PLUGIN_NAME})
 # online_distribution/eventlibraries, then install). Not a CMake package,
 # so find it directly like RunControl's CMakeLists.txt does for its
 # external DAQ-universe dependencies.
+# headers install nested under Event/ (Automake's pkgincludedir
+# convention, from AC_INIT(Event,...) - #include <Event/Event.h>, not
+# a flat #include <Event.h>), so look for Event/Event.h to get the
+# parent dir as NOROOTEVENT_INCLUDE_DIR.
 find_library(NOROOTEVENT_LIBRARY NoRootEvent)
-find_path(NOROOTEVENT_INCLUDE_DIR Event.h)
+find_path(NOROOTEVENT_INCLUDE_DIR Event/Event.h)
 if(NOT NOROOTEVENT_LIBRARY OR NOT NOROOTEVENT_INCLUDE_DIR)
   message(FATAL_ERROR "NoRootEvent (from online_distribution/eventlibraries) not found - "
                        "build and install it first")
