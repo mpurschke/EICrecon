@@ -76,7 +76,7 @@ JEventSourceRCDAQ::Result JEventSourceRCDAQ::Emit(JEvent& event) {
   // RCDAQEventHolder takes ownership of evt from here on; JANA2 deletes the
   // holder (and thus evt) once every factory/processor is done with this
   // JEvent.
-  event.Insert(new RCDAQEventHolder(evt));
+  event.Insert(new RCDAQEventHolder(evt), "RCDAQEvent");
 
   return Result::Success;
 }
