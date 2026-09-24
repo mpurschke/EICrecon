@@ -1,6 +1,3 @@
-// Copyright 2026, Martin L. Purschke
-// Subject to the terms in the LICENSE file found in the top-level directory.
-//
 // JEventSource that reads rcdaq event files through the online_distribution
 // eventlibraries Event/Eventiterator/Packet API.
 
