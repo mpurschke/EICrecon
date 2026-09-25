@@ -9,6 +9,9 @@
 #include <JANA/JEvent.h>
 #include <JANA/JException.h>
 
+#include <edm4hep/EventHeaderCollection.h>
+#include <podio/Frame.h>
+
 #include <Event/Event.h>
 #include <Event/Eventiterator.h>
 #include <Event/fileEventiterator.h>
@@ -69,6 +72,24 @@ JEventSourceRCDAQ::Result JEventSourceRCDAQ::Emit(JEvent& event) {
 
   event.SetEventNumber(evt->getEvtSequence());
   event.SetRunNumber(evt->getRunNumber());
+
+  // the standard EDM4hep event header, as EICrecon's PODIO source provides
+  // it: run and event number, and the event's Unix time in timeStamp
+  edm4hep::EventHeaderCollection headers;
+  auto header = headers.create();
+  header.setEventNumber(evt->getEvtSequence());
+  header.setRunNumber(evt->getRunNumber());
+  header.setTimeStamp(evt->getTime());
+  header.setWeight(1.0);
+
+  // a fresh podio::Frame per event holds the collection, and the JEvent
+  // takes ownership of the frame - the same pattern as EICrecon's PODIO
+  // source (letting InsertCollection() create the frame left the previous
+  // event's frame in recycled JEvents unless the podio plugin was loaded)
+  auto frame                = std::make_unique<podio::Frame>();
+  const auto& header_coll   = frame->put(std::move(headers), "EventHeader");
+  event.InsertCollectionAlreadyInFrame<edm4hep::EventHeader>(&header_coll, "EventHeader");
+  event.Insert(frame.release());
 
   // RCDAQEventHolder takes ownership of evt from here on; JANA2 deletes the
   // holder (and thus evt) once every factory/processor is done with this

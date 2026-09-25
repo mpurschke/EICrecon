@@ -27,4 +27,4 @@ if(NOT NOROOTEVENT_LIBRARY OR NOT NOROOTEVENT_INCLUDE_DIR)
 endif()
 
 plugin_include_directories(${PLUGIN_NAME} PRIVATE ${NOROOTEVENT_INCLUDE_DIR})
-plugin_link_libraries(${PLUGIN_NAME} ${NOROOTEVENT_LIBRARY} EDM4HEP::edm4hep podio::podio log_library)
+plugin_link_libraries(${PLUGIN_NAME} ${NOROOTEVENT_LIBRARY} EDM4HEP::edm4hep podio::podio)
