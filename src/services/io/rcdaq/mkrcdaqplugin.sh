@@ -18,11 +18,14 @@
 # build.sh and run.sh start the EIC container themselves when they are not
 # already running inside it.
 #
-# The locations below can be overridden from the environment.
+# The project finds everything through two environment variables:
+#   EIC_MAIN     where the rcdaq plugin is installed, laid out like EICrecon's
+#                own installation: lib/EICrecon/plugins/rcdaq.so,
+#                include/EICrecon/services/io/rcdaq/
+#   ONLINE_MAIN  the online_distribution eventlibraries (defaults to EIC_MAIN
+#                inside the container)
+# The container image can be overridden with EIC_IMAGE.
 
-RCDAQ_SRC_DIR=${RCDAQ_SRC_DIR:-$(cd "$(dirname "$0")" && pwd)}
-RCDAQ_PLUGIN_DIR=${RCDAQ_PLUGIN_DIR:-/home/purschke/Claude/build-eic/EICrecon/src/services/io/rcdaq}
-EVENTLIB_PREFIX=${EVENTLIB_PREFIX:-/home/purschke/Claude/install-eic}
 EIC_IMAGE=${EIC_IMAGE:-eicweb/eic_xl:nightly}
 
 NAME=$1
@@ -48,9 +51,6 @@ mkdir -p "$DIR" || exit 1
 emit()
 {
   sed -e "s|@NAME@|$NAME|g" \
-      -e "s|@RCDAQ_SRC_DIR@|$RCDAQ_SRC_DIR|g" \
-      -e "s|@RCDAQ_PLUGIN_DIR@|$RCDAQ_PLUGIN_DIR|g" \
-      -e "s|@EVENTLIB_PREFIX@|$EVENTLIB_PREFIX|g" \
       -e "s|@EIC_IMAGE@|$EIC_IMAGE|g" > "$DIR/$1"
 }
 
@@ -64,8 +64,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-# where RCDAQEventHolder.h lives (the rcdaq plugin sources in EICrecon)
-set(RCDAQ_SRC_DIR "@RCDAQ_SRC_DIR@" CACHE PATH "rcdaq plugin source directory")
+# the rcdaq plugin's headers are installed like EICrecon's own, under
+# $EIC_MAIN/include/EICrecon (#include "services/io/rcdaq/RCDAQEventHolder.h")
+if(NOT DEFINED ENV{EIC_MAIN})
+  message(FATAL_ERROR "EIC_MAIN is not set - it should point to the rcdaq plugin installation")
+endif()
 
 find_package(EICrecon REQUIRED)
 find_package(JANA REQUIRED)
@@ -81,7 +84,7 @@ add_library(@NAME@ SHARED @NAME@.cc)
 set_target_properties(@NAME@ PROPERTIES PREFIX "" SUFFIX ".so")   # JANA looks for @NAME@.so
 
 target_include_directories(@NAME@ PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR} ${RCDAQ_SRC_DIR} ${NOROOTEVENT_INCLUDE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR} $ENV{EIC_MAIN}/include/EICrecon ${NOROOTEVENT_INCLUDE_DIR})
 
 target_link_libraries(@NAME@ PRIVATE
   EICrecon::log_library JANA::jana2_shared_lib EDM4HEP::edm4hep podio::podio
@@ -92,16 +95,24 @@ EOF
 # common head of build.sh and run.sh: re-run inside the container if needed
 CONTAINER_PREAMBLE='HERE=$(cd "$(dirname "$0")" && pwd)
 
+if [ -z "$EIC_MAIN" ]
+then
+  echo "EIC_MAIN is not set - it should point to the rcdaq plugin installation"
+  exit 1
+fi
+
 # not inside the EIC container (no jana)? then start it and run this script there
 if ! command -v jana > /dev/null
 then
   MOUNTS=(-v "$HOME:$HOME")
   [ -d /data ] && MOUNTS+=(-v /data:/data:ro)
-  exec docker run --rm -u "$(id -u):$(id -g)" "${MOUNTS[@]}" -e EXTRA_PLUGINS -w "$HERE" \
+  exec docker run --rm -u "$(id -u):$(id -g)" "${MOUNTS[@]}" -e EIC_MAIN -e EXTRA_PLUGINS -w "$HERE" \
        @EIC_IMAGE@ bash "$HERE/$(basename "$0")" "$@"
 fi
 
-export LD_LIBRARY_PATH=@EVENTLIB_PREFIX@/lib:$LD_LIBRARY_PATH
+# the eventlibraries: inside the container, where they live with the plugin
+ONLINE_MAIN=${ONLINE_MAIN:-$EIC_MAIN}
+export LD_LIBRARY_PATH=$ONLINE_MAIN/lib:$LD_LIBRARY_PATH
 cd "$HERE"'
 
 emit build.sh <<EOF
@@ -110,7 +121,7 @@ emit build.sh <<EOF
 
 $CONTAINER_PREAMBLE
 
-cmake -S . -B build -DCMAKE_PREFIX_PATH=@EVENTLIB_PREFIX@ || exit 1
+cmake -S . -B build -DCMAKE_PREFIX_PATH="\$ONLINE_MAIN;\$EIC_MAIN" || exit 1
 cmake --build build -j8
 EOF
 
@@ -141,7 +152,7 @@ PLUGINS=log,rcdaq,@NAME@
 [ -n "\$EXTRA_PLUGINS" ] && PLUGINS=\$PLUGINS,\$EXTRA_PLUGINS
 
 jana -Pplugins=\$PLUGINS \\
-     -Pjana:plugin_path=@RCDAQ_PLUGIN_DIR@:\$HERE/build \\
+     -Pjana:plugin_path=\$EIC_MAIN/lib/EICrecon/plugins:\$HERE/build \\
      -Pjana:nevents=\$NEVENTS \\
      "\$@" "\$FILE"
 EOF
@@ -167,11 +178,13 @@ extern "C"
   {
     InitJANAPlugin(app);
 
-    // one factory instance per packet. Arguments: instance name, input
-    // (the rcdaq event), output collection name, configuration.
-    // Parameters of this instance: -P@NAME@:@NAME@Hits:packetId=... etc.
+    // the factory. Arguments: instance name, input (the rcdaq event), output
+    // collection name, configuration. Here: packet 1003 of the rcdaq test
+    // stream, which has 4 channels (it does not report "CHANNELS" itself).
+    // Parameters of an instance can be changed on the command line,
+    // -P@NAME@:<instance name>:<parameter>=..., e.g. -P@NAME@:@NAME@Hits:packetId=1003
     app->Add(new JOmniFactoryGeneratorT<@NAME@_factory>(
-        "@NAME@Hits", {"RCDAQEvent"}, {"@NAME@Hits"}, {.packet_id = 1003}, app));
+        "@NAME@Hits", {"RCDAQEvent"}, {"@NAME@Hits"}, {.packet_id = 1003, .nchannels = 4}, app));
 
     // histograms of the hits in collection "@NAME@Hits"
     app->Add(new @NAME@_processor("@NAME@Hits"));
@@ -192,7 +205,7 @@ emit "${NAME}_factory.h" <<'EOF'
 #include <cstdint>
 #include <memory>
 
-#include "RCDAQEventHolder.h"
+#include "services/io/rcdaq/RCDAQEventHolder.h"
 
 struct @NAME@Config
 {
@@ -250,23 +263,27 @@ EOF
 emit "${NAME}_processor.h" <<'EOF'
 #pragma once
 
+// Tutorial - the same as in the pmonitor manual, with packet 1003 of the
+// rcdaq test stream: un-comment the three lines marked "tutorial" (the
+// declaration of h1, its creation in Init(), and the Fill in
+// ProcessSequential()), then "bash build.sh" and "bash run.sh <file>".
+// h1 ends up in @NAME@.root. A test stream file: dpipe -sT -df -o -n 1000 none test.evt
+
 #include <JANA/JApplication.h>
 #include <JANA/JEvent.h>
 #include <JANA/JEventProcessor.h>
 #include <edm4hep/RawCalorimeterHitCollection.h>
 
 #include <TFile.h>
-#include <TH1F.h>
-#include <TString.h>
+#include <TH1.h>
+#include <TH2.h>
 
-#include <memory>
 #include <string>
-#include <vector>
 
-/// hits -> per-channel histograms of the hit amplitude.
-///   Init()              books the histograms (runs once, before the first event)
+/// hits -> histograms.
+///   Init()              opens the output file and creates the histograms (~ pinit())
 ///   ProcessSequential() fills them, one event at a time
-///   Finish()            writes them to @NAME@:output_file
+///   Finish()            writes them to the file
 class @NAME@_processor : public JEventProcessor
 {
 public:
@@ -279,20 +296,13 @@ public:
 
   void Init() override
   {
-    auto* app = GetApplication();
-    app->SetDefaultParameter("@NAME@:output_file", m_output_file, "ROOT file for the histograms");
-    app->SetDefaultParameter("@NAME@:nchannels", m_nchannels, "number of channel histograms to book");
-    app->SetDefaultParameter("@NAME@:nbins", m_nbins, "bins per histogram");
-    app->SetDefaultParameter("@NAME@:xmin", m_xmin, "lower edge; xmin >= xmax: ROOT picks the range");
-    app->SetDefaultParameter("@NAME@:xmax", m_xmax, "upper edge");
+    GetApplication()->SetDefaultParameter("@NAME@:output_file", m_output_file,
+                                          "ROOT file for the histograms");
 
-    for (int ch = 0; ch < m_nchannels; ch++)
-      {
-        auto h = std::make_unique<TH1F>(Form("h_%02d", ch), Form("%s channel %d", m_collection.c_str(), ch),
-                                        m_nbins, m_xmin, m_xmax);
-        h->SetDirectory(nullptr);   // we own it, not ROOT's current directory
-        m_hists.push_back(std::move(h));
-      }
+    // histograms created after this line end up in this file
+    m_file = new TFile(m_output_file.c_str(), "RECREATE");
+
+    // h1 = new TH1F ( "h1","test histogram", 400, -50, 50);    // tutorial
   }
 
   void ProcessSequential(const JEvent& event) override
@@ -300,33 +310,25 @@ public:
     const auto* hits = event.GetCollection<edm4hep::RawCalorimeterHit>(m_collection);
     for (const auto& hit : *hits)
       {
-        const int ch = hit.getCellID() & 0xffffffff;   // placeholder cellID, see the factory
-        if (ch < static_cast<int>(m_hists.size()))
-          {
-            m_hists[ch]->Fill(hit.getAmplitude());
-          }
+        [[maybe_unused]] const int ch = hit.getCellID() & 0xffffffff;   // placeholder cellID, see the factory
+
+        // if ( ch == 3 ) h1->Fill ( hit.getAmplitude()/1000. );    // tutorial
       }
   }
 
   void Finish() override
   {
-    TFile f(m_output_file.c_str(), "RECREATE");
-    for (auto& h : m_hists)
-      {
-        h->Write();
-      }
-    f.Close();
+    m_file->Write();
+    m_file->Close();
+    delete m_file;
   }
 
 private:
   std::string m_collection;
   std::string m_output_file = "@NAME@.root";
-  int m_nchannels = 32;
-  int m_nbins     = 128;
-  double m_xmin   = 0;
-  double m_xmax   = 0;   // xmin >= xmax: automatic range
+  TFile* m_file = nullptr;
 
-  std::vector<std::unique_ptr<TH1F>> m_hists;
+  // TH1F *h1;    // tutorial
 };
 EOF
 
@@ -342,8 +344,17 @@ Files:
   @NAME@_factory.h     packet -> hits    (the USER CODE part)
   @NAME@_processor.h   hits -> histograms
 
+Tutorial (as in the pmonitor manual): un-comment the three lines marked
+"tutorial" in @NAME@_processor.h, rebuild, and run a test stream file:
+
+  dpipe -sT -df -o -n 1000 none test.evt
+  bash build.sh
+  bash run.sh test.evt
+
+Example data files: https://www.phenix.bnl.gov/~purschke/rcdaq/
+
 Any parameter can be set on the run.sh command line, e.g.
-  bash run.sh file.evt 100 -P@NAME@:@NAME@Hits:packetId=2071 -P@NAME@:xmax=50000
+  bash run.sh file.evt 100 -P@NAME@:@NAME@Hits:packetId=1003 -P@NAME@:output_file=other.root
 EOF
 
 echo "created $DIR - next: cd $DIR && bash build.sh"

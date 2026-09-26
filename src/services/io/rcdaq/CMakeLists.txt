@@ -28,3 +28,6 @@ endif()
 
 plugin_include_directories(${PLUGIN_NAME} PRIVATE ${NOROOTEVENT_INCLUDE_DIR})
 plugin_link_libraries(${PLUGIN_NAME} ${NOROOTEVENT_LIBRARY} EDM4HEP::edm4hep podio::podio)
+
+# the generator for user plugin projects
+install(PROGRAMS mkrcdaqplugin.sh DESTINATION ${CMAKE_INSTALL_BINDIR})
