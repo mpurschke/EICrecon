@@ -98,7 +98,7 @@ then
   MOUNTS=(-v "$HOME:$HOME")
   [ -d /data ] && MOUNTS+=(-v /data:/data:ro)
   exec docker run --rm -u "$(id -u):$(id -g)" "${MOUNTS[@]}" -e EXTRA_PLUGINS -w "$HERE" \
-       @EIC_IMAGE@ "$HERE/$(basename "$0")" "$@"
+       @EIC_IMAGE@ bash "$HERE/$(basename "$0")" "$@"
 fi
 
 export LD_LIBRARY_PATH=@EVENTLIB_PREFIX@/lib:$LD_LIBRARY_PATH
@@ -118,12 +118,12 @@ emit run.sh <<EOF
 #!/bin/bash
 # run an rcdaq file through @NAME@
 #
-#   ./run.sh <file.evt> [nevents] [more jana -P options...]
+#   bash run.sh <file.evt> [nevents] [more jana -P options...]
 #
 # nevents 0 (default) means all events. To also write the hits to a PODIO
 # file, add the podio plugin and name the collections:
 #
-#   EXTRA_PLUGINS=podio ./run.sh file.evt 100 \\
+#   EXTRA_PLUGINS=podio bash run.sh file.evt 100 \\
 #       -Ppodio:output_file=hits.root -Ppodio:output_collections=@NAME@Hits
 
 $CONTAINER_PREAMBLE
@@ -145,7 +145,6 @@ jana -Pplugins=\$PLUGINS \\
      -Pjana:nevents=\$NEVENTS \\
      "\$@" "\$FILE"
 EOF
-chmod +x "$DIR/build.sh" "$DIR/run.sh"
 
 # ---------------------------------------------------------------------------
 emit "${NAME}.cc" <<'EOF'
@@ -335,8 +334,8 @@ EOF
 emit README <<'EOF'
 @NAME@ - rcdaq user plugin for EICrecon/JANA
 
-  ./build.sh                      build @NAME@.so
-  ./run.sh <file.evt> [nevents]   run a file; histograms go to @NAME@.root
+  bash build.sh                      build @NAME@.so
+  bash run.sh <file.evt> [nevents]   run a file; histograms go to @NAME@.root
 
 Files:
   @NAME@.cc            InitPlugin(): which packets, which collection names
@@ -344,7 +343,7 @@ Files:
   @NAME@_processor.h   hits -> histograms
 
 Any parameter can be set on the run.sh command line, e.g.
-  ./run.sh file.evt 100 -P@NAME@:@NAME@Hits:packetId=2071 -P@NAME@:xmax=50000
+  bash run.sh file.evt 100 -P@NAME@:@NAME@Hits:packetId=2071 -P@NAME@:xmax=50000
 EOF
 
-echo "created $DIR - next: cd $DIR && ./build.sh"
+echo "created $DIR - next: cd $DIR && bash build.sh"
