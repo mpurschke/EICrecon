@@ -21,7 +21,9 @@
 # The project finds everything through two environment variables:
 #   EIC_MAIN     where the rcdaq plugin is installed, laid out like EICrecon's
 #                own installation: lib/EICrecon/plugins/rcdaq.so,
-#                include/EICrecon/services/io/rcdaq/
+#                include/EICrecon/services/io/rcdaq/. Defaults to
+#                EIC_SHELL_PREFIX, the personal install area that eic-shell
+#                sets up (<eic-shell directory>/local).
 #   ONLINE_MAIN  the online_distribution eventlibraries (defaults to EIC_MAIN
 #                inside the container)
 # The container image can be overridden with EIC_IMAGE.
@@ -65,9 +67,14 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # the rcdaq plugin's headers are installed like EICrecon's own, under
-# $EIC_MAIN/include/EICrecon (#include "services/io/rcdaq/RCDAQEventHolder.h")
-if(NOT DEFINED ENV{EIC_MAIN})
-  message(FATAL_ERROR "EIC_MAIN is not set - it should point to the rcdaq plugin installation")
+# $EIC_MAIN/include/EICrecon (#include "services/io/rcdaq/RCDAQEventHolder.h").
+# EIC_MAIN defaults to EIC_SHELL_PREFIX (eic-shell's personal install area).
+if(DEFINED ENV{EIC_MAIN})
+  set(EIC_MAIN $ENV{EIC_MAIN})
+elseif(DEFINED ENV{EIC_SHELL_PREFIX})
+  set(EIC_MAIN $ENV{EIC_SHELL_PREFIX})
+else()
+  message(FATAL_ERROR "neither EIC_MAIN nor EIC_SHELL_PREFIX is set - one should point to the rcdaq plugin installation")
 endif()
 
 find_package(EICrecon REQUIRED)
@@ -84,7 +91,7 @@ add_library(@NAME@ SHARED @NAME@.cc)
 set_target_properties(@NAME@ PROPERTIES PREFIX "" SUFFIX ".so")   # JANA looks for @NAME@.so
 
 target_include_directories(@NAME@ PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR} $ENV{EIC_MAIN}/include/EICrecon ${NOROOTEVENT_INCLUDE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR} ${EIC_MAIN}/include/EICrecon ${NOROOTEVENT_INCLUDE_DIR})
 
 target_link_libraries(@NAME@ PRIVATE
   EICrecon::log_library JANA::jana2_shared_lib EDM4HEP::edm4hep podio::podio
@@ -95,9 +102,11 @@ EOF
 # common head of build.sh and run.sh: re-run inside the container if needed
 CONTAINER_PREAMBLE='HERE=$(cd "$(dirname "$0")" && pwd)
 
+# EIC_MAIN defaults to EIC_SHELL_PREFIX, the personal install area of eic-shell
+export EIC_MAIN=${EIC_MAIN:-$EIC_SHELL_PREFIX}
 if [ -z "$EIC_MAIN" ]
 then
-  echo "EIC_MAIN is not set - it should point to the rcdaq plugin installation"
+  echo "neither EIC_MAIN nor EIC_SHELL_PREFIX is set - one should point to the rcdaq plugin installation"
   exit 1
 fi
 
@@ -106,7 +115,9 @@ if ! command -v jana > /dev/null
 then
   MOUNTS=(-v "$HOME:$HOME")
   [ -d /data ] && MOUNTS+=(-v /data:/data:ro)
-  exec docker run --rm -u "$(id -u):$(id -g)" "${MOUNTS[@]}" -e EIC_MAIN -e EXTRA_PLUGINS -w "$HERE" \
+  # EIC_SHELL_PREFIX as eic-shell does it: the image then puts its bin/ and lib/ on the paths
+  exec docker run --rm -u "$(id -u):$(id -g)" "${MOUNTS[@]}" -e EIC_MAIN -e EIC_SHELL_PREFIX="${EIC_SHELL_PREFIX:-$EIC_MAIN}" \
+       -e EXTRA_PLUGINS -w "$HERE" \
        @EIC_IMAGE@ bash "$HERE/$(basename "$0")" "$@"
 fi
 
