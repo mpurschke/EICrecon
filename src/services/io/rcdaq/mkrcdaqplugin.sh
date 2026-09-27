@@ -191,11 +191,10 @@ extern "C"
 
     // the factory. Arguments: instance name, input (the rcdaq event), output
     // collection name, configuration. Here: packet 1003 of the rcdaq test
-    // stream, which has 4 channels (it does not report "CHANNELS" itself).
-    // Parameters of an instance can be changed on the command line,
+    // stream. Parameters of an instance can be changed on the command line,
     // -P@NAME@:<instance name>:<parameter>=..., e.g. -P@NAME@:@NAME@Hits:packetId=1003
     app->Add(new JOmniFactoryGeneratorT<@NAME@_factory>(
-        "@NAME@Hits", {"RCDAQEvent"}, {"@NAME@Hits"}, {.packet_id = 1003, .nchannels = 4}, app));
+        "@NAME@Hits", {"RCDAQEvent"}, {"@NAME@Hits"}, {.packet_id = 1003}, app));
 
     // histograms of the hits in collection "@NAME@Hits"
     app->Add(new @NAME@_processor("@NAME@Hits"));
@@ -206,6 +205,11 @@ EOF
 # ---------------------------------------------------------------------------
 emit "${NAME}_factory.h" <<'EOF'
 #pragma once
+
+// Tutorial - the same as in the pmonitor manual: un-comment the example in
+// Process() below (it makes a hit for each of the 4 channels of the rcdaq
+// test stream's packet 1003), and the three lines marked "tutorial" in
+// @NAME@_processor.h. Then "bash build.sh" and "bash run.sh <file>".
 
 #include <edm4hep/RawCalorimeterHitCollection.h>
 #include <extensions/jana/JOmniFactory.h>
@@ -221,12 +225,10 @@ emit "${NAME}_factory.h" <<'EOF'
 struct @NAME@Config
 {
   int packet_id = 1003;   // rcdaq packet to read
-  int nchannels = 0;      // <= 0: ask the packet, iValue(0,"CHANNELS")
 };
 
-/// packet -> edm4hep::RawCalorimeterHits, one hit per channel.
-/// Process() is the equivalent of pmonitor's process_event(); the part
-/// marked USER CODE decides what the "hit" value of a channel is.
+/// packets -> edm4hep::RawCalorimeterHits.
+/// Process() is the equivalent of pmonitor's process_event().
 class @NAME@_factory : public JOmniFactory<@NAME@_factory, @NAME@Config>
 {
 private:
@@ -236,36 +238,34 @@ private:
   // each ParameterRef makes a config field settable on the command line,
   // -P@NAME@:<instance name>:<parameter>=<value>
   ParameterRef<int> m_packet_id{this, "packetId", config().packet_id, "rcdaq packet id to read"};
-  ParameterRef<int> m_nchannels{this, "nChannels", config().nchannels,
-                                "number of channels; <= 0: ask the packet"};
 
 public:
   void Configure() {}
 
   void Process(int32_t /* run_number */, uint64_t /* event_number */)
   {
-    Event* evt = m_in_event().at(0)->evt;
+    [[maybe_unused]] Event* evt = m_in_event().at(0)->evt;
 
-    // we own the Packet; the unique_ptr deletes it before Process() returns
-    std::unique_ptr<Packet> p(evt->getPacket(config().packet_id));
-    if (!p)
-      {
-        return;   // packet not in this event (e.g. begin-run) -> no hits
-      }
+    // ------------------------- USER CODE ------------------------------
+    // get your packet(s) from evt, and make hits from them
 
-    const int nchannels = config().nchannels > 0 ? config().nchannels : p->iValue(0, "CHANNELS");
-    for (int ch = 0; ch < nchannels; ch++)
-      {
-        // ------------------ USER CODE: this channel's value ------------------
-        const int amplitude = p->iValue(ch);
-        // ----------------------------------------------------------------------
+    // // this example is for the test stream packet 1003: 4 channels with
+    // // gaussian distributions of RMS 10, 100, 1000 and 10000
+    // std::unique_ptr<Packet> p(evt->getPacket(config().packet_id));   // we own the Packet
+    // if (!p)
+    //   {
+    //     return;   // packet not in this event (e.g. begin-run) -> no hits
+    //   }
 
-        auto hit = m_out_hits()->create();
-        // placeholder cellID: packet id in the upper, channel in the lower 32 bits
-        hit.setCellID((static_cast<std::uint64_t>(config().packet_id) << 32) | ch);
-        hit.setAmplitude(amplitude);
-        hit.setTimeStamp(0);
-      }
+    // // one hit per channel (packet 1003 does not report its number of channels)
+    // for (int ch = 0; ch < 4; ch++)
+    //   {
+    //     auto hit = m_out_hits()->create();
+    //     // placeholder cellID: packet id in the upper, channel in the lower 32 bits
+    //     hit.setCellID((static_cast<std::uint64_t>(config().packet_id) << 32) | ch);
+    //     hit.setAmplitude(p->iValue(ch));
+    //     hit.setTimeStamp(0);
+    //   }
   }
 };
 EOF
@@ -274,11 +274,11 @@ EOF
 emit "${NAME}_processor.h" <<'EOF'
 #pragma once
 
-// Tutorial - the same as in the pmonitor manual, with packet 1003 of the
-// rcdaq test stream: un-comment the three lines marked "tutorial" (the
-// declaration of h1, its creation in Init(), and the Fill in
-// ProcessSequential()), then "bash build.sh" and "bash run.sh <file>".
-// h1 ends up in @NAME@.root. A test stream file: dpipe -sT -df -o -n 1000 none test.evt
+// Tutorial - the same as in the pmonitor manual: un-comment the three lines
+// marked "tutorial" here (the declaration of h1, its creation in Init(), and
+// the Fill with channel 3 in ProcessSequential()), and the example in
+// Process() in @NAME@_factory.h. Then "bash build.sh" and "bash run.sh <file>"; h1 ends up
+// in @NAME@.root. A test stream file: dpipe -sT -df -o -n 1000 none test.evt
 
 #include <JANA/JApplication.h>
 #include <JANA/JEvent.h>
@@ -352,11 +352,12 @@ emit README <<'EOF'
 
 Files:
   @NAME@.cc            InitPlugin(): which packets, which collection names
-  @NAME@_factory.h     packet -> hits    (the USER CODE part)
+  @NAME@_factory.h     packets -> hits   (the USER CODE part, ~ process_event())
   @NAME@_processor.h   hits -> histograms
 
-Tutorial (as in the pmonitor manual): un-comment the three lines marked
-"tutorial" in @NAME@_processor.h, rebuild, and run a test stream file:
+Tutorial (as in the pmonitor manual): un-comment the example in Process()
+in @NAME@_factory.h and the three lines marked "tutorial" in
+@NAME@_processor.h, rebuild, and run a test stream file:
 
   dpipe -sT -df -o -n 1000 none test.evt
   bash build.sh
