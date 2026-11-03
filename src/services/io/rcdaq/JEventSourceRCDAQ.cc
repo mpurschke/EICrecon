@@ -86,8 +86,8 @@ JEventSourceRCDAQ::Result JEventSourceRCDAQ::Emit(JEvent& event) {
   // takes ownership of the frame - the same pattern as EICrecon's PODIO
   // source (letting InsertCollection() create the frame left the previous
   // event's frame in recycled JEvents unless the podio plugin was loaded)
-  auto frame                = std::make_unique<podio::Frame>();
-  const auto& header_coll   = frame->put(std::move(headers), "EventHeader");
+  auto frame              = std::make_unique<podio::Frame>();
+  const auto& header_coll = frame->put(std::move(headers), "EventHeader");
   event.InsertCollectionAlreadyInFrame<edm4hep::EventHeader>(&header_coll, "EventHeader");
   event.Insert(frame.release());
 

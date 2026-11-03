@@ -3,10 +3,9 @@
 #include <Event/Event.h>
 
 /// Owns the rcdaq Event* for the lifetime of the JEvent it was Insert()'d
-/// into. JEventSourceRCDAQ::Emit() is the "requestor" that called
-/// Eventiterator::getNextEvent() and is therefore responsible for deleting
-/// what it got back (the rcdaq eventlibraries convention); this holder is
-/// just where that responsibility ends up living once JANA2 takes over the
+/// into. JEventSourceRCDAQ::Emit() got the Event from
+/// Eventiterator::getNextEvent() and, by the eventlibraries convention, has
+/// to delete it; this holder takes over that job once JANA2 manages the
 /// JEvent's lifetime.
 struct RCDAQEventHolder {
   explicit RCDAQEventHolder(Event* event) : evt(event) {}

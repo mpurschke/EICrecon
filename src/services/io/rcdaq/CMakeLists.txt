@@ -1,6 +1,27 @@
 # Automatically set plugin name the same as the directory name
 get_filename_component(PLUGIN_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 
+# The rcdaq eventlibraries (libNoRootEvent, from online_distribution) are built
+# and installed separately and do not provide a CMake package, so find the
+# library and the headers directly ($ONLINE_MAIN is their usual install prefix).
+# The headers are installed under Event/ (#include <Event/Event.h>), so search
+# for Event/Event.h. Without them, the plugin is skipped.
+find_library(
+  NOROOTEVENT_LIBRARY NoRootEvent
+  HINTS $ENV{ONLINE_MAIN}
+  PATH_SUFFIXES lib)
+find_path(
+  NOROOTEVENT_INCLUDE_DIR Event/Event.h
+  HINTS $ENV{ONLINE_MAIN}
+  PATH_SUFFIXES include)
+if(NOT NOROOTEVENT_LIBRARY OR NOT NOROOTEVENT_INCLUDE_DIR)
+  message(
+    STATUS
+      "rcdaq eventlibraries (libNoRootEvent) not found. Skipping rcdaq plugin..."
+  )
+  return()
+endif()
+
 # Function creates ${PLUGIN_NAME}_plugin and ${PLUGIN_NAME}_library targets
 # Setting default includes, libraries and installation paths
 plugin_add(${PLUGIN_NAME})
@@ -10,24 +31,9 @@ plugin_add(${PLUGIN_NAME})
 # headers to the correct installation directory
 plugin_glob_all(${PLUGIN_NAME})
 
-# online_distribution/eventlibraries (NoRootEvent) - built/installed
-# separately via its own CMakeLists.txt (cmake -S . -B build in
-# online_distribution/eventlibraries, then install). Not a CMake package,
-# so find it directly like RunControl's CMakeLists.txt does for its
-# external DAQ-universe dependencies.
-# headers install nested under Event/ (Automake's pkgincludedir
-# convention, from AC_INIT(Event,...) - #include <Event/Event.h>, not
-# a flat #include <Event.h>), so look for Event/Event.h to get the
-# parent dir as NOROOTEVENT_INCLUDE_DIR.
-find_library(NOROOTEVENT_LIBRARY NoRootEvent)
-find_path(NOROOTEVENT_INCLUDE_DIR Event/Event.h)
-if(NOT NOROOTEVENT_LIBRARY OR NOT NOROOTEVENT_INCLUDE_DIR)
-  message(FATAL_ERROR "NoRootEvent (from online_distribution/eventlibraries) not found - "
-                       "build and install it first")
-endif()
-
 plugin_include_directories(${PLUGIN_NAME} PRIVATE ${NOROOTEVENT_INCLUDE_DIR})
-plugin_link_libraries(${PLUGIN_NAME} ${NOROOTEVENT_LIBRARY} EDM4HEP::edm4hep podio::podio)
+plugin_link_libraries(${PLUGIN_NAME} ${NOROOTEVENT_LIBRARY} EDM4HEP::edm4hep
+                      podio::podio)
 
 # the generator for user plugin projects
 install(PROGRAMS mkrcdaqplugin.sh DESTINATION ${CMAKE_INSTALL_BINDIR})
