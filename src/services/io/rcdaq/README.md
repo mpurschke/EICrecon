@@ -2,8 +2,9 @@
 
 This plugin reads data files written by [RCDAQ](https://www.phenix.bnl.gov/~purschke/rcdaq/),
 the data acquisition system used at ePIC test beams and test stands, into
-EICrecon/JANA2. Both of RCDAQ's file formats are supported (ONCS and PRDF,
-usually `.evt` and `.prdf` files), including compressed files.
+EICrecon/JANA2: files in the RCDAQ format (usually `.evt`), including
+compressed files. The legacy PHENIX format (PRDF, `.prdf`) is no longer
+supported by the event libraries.
 
 The raw data are not converted into a new data model. The plugin uses RCDAQ's
 own event libraries (`Event`/`Packet` from
@@ -59,7 +60,7 @@ eicrecon -Pplugins=rcdaq,MyPlugin -Pjana:plugin_path=MyPlugin/build \
          -Ppodio:output_collections=EventHeader,MyPluginHits file.evt
 ~~~
 
-Files ending in `.evt` or `.prdf` are recognized automatically. For other
+Files ending in `.evt` are recognized automatically. For other
 names, select the source explicitly with `-Pevent_source_type=JEventSourceRCDAQ`.
 
 ### What the source provides
@@ -120,7 +121,7 @@ e.g. `-PMyPlugin:MyPluginHits:packetId=1003`.
 ### Current limitations
 
 - Files only; live data from a running RCDAQ are not supported.
-- Files are recognized by their name (`.evt`, `.prdf`), not by their content.
+- Files are recognized by their name (`.evt`), not by their content.
 - There is no channel map to DD4hep cell IDs yet. The generated user plugin
   uses a placeholder `cellID` (packet id in the upper, channel in the lower
   32 bits), which has to be replaced by the detector's readout cell ID.

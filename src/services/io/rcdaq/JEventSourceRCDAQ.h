@@ -8,7 +8,7 @@
 
 class Eventiterator;
 
-/// Reads rcdaq event files (.evt/.prdf) via the online_distribution
+/// Reads rcdaq event files (.evt) via the online_distribution
 /// eventlibraries Eventiterator API (file replay only for now - see
 /// Open()). Emit() wraps each Event* in an RCDAQEventHolder and inserts
 /// that into the JEvent; per-detector JFactory<Packet> implementations

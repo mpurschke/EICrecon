@@ -102,7 +102,7 @@ JEventSourceRCDAQ::Result JEventSourceRCDAQ::Emit(JEvent& event) {
 //------------------------------------------------------------------------------
 // GetDescription
 //------------------------------------------------------------------------------
-std::string JEventSourceRCDAQ::GetDescription() { return "rcdaq event file (.evt/.prdf)"; }
+std::string JEventSourceRCDAQ::GetDescription() { return "rcdaq event file (.evt)"; }
 
 //------------------------------------------------------------------------------
 // CheckOpenable
@@ -110,7 +110,7 @@ std::string JEventSourceRCDAQ::GetDescription() { return "rcdaq event file (.evt
 template <>
 double JEventSourceGeneratorT<JEventSourceRCDAQ>::CheckOpenable(std::string resource_name) {
 
-  if (resource_name.ends_with(".evt") || resource_name.ends_with(".prdf")) {
+  if (resource_name.ends_with(".evt")) {
     return 0.02;
   }
   return 0.0;
