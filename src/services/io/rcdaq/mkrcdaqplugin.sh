@@ -278,7 +278,7 @@ emit "${NAME}_processor.h" <<'EOF'
 // marked "tutorial" here (the declaration of h1, its creation in Init(), and
 // the Fill with channel 3 in ProcessSequential()), and the example in
 // Process() in @NAME@_factory.h. Then "bash build.sh" and "bash run.sh <file>"; h1 ends up
-// in @NAME@.root. A test stream file: dpipe -sT -df -o -n 1000 none test.evt
+// in @NAME@.root. A test stream file: dpipe -sT -df -n 1000 none test.evt
 
 #include <JANA/JApplication.h>
 #include <JANA/JEvent.h>
@@ -359,7 +359,7 @@ Tutorial (as in the pmonitor manual): un-comment the example in Process()
 in @NAME@_factory.h and the three lines marked "tutorial" in
 @NAME@_processor.h, rebuild, and run a test stream file:
 
-  dpipe -sT -df -o -n 1000 none test.evt
+  dpipe -sT -df -n 1000 none test.evt
   bash build.sh
   bash run.sh test.evt
 

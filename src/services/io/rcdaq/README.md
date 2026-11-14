@@ -8,7 +8,7 @@ supported by the event libraries.
 
 The raw data are not converted into a new data model. The plugin uses RCDAQ's
 own event libraries (`Event`/`Packet` from
-[online_distribution](https://github.com/sPHENIX-Collaboration/online_distribution)),
+[online_distribution](https://github.com/eic/online_distribution)),
 so every detector format that RCDAQ already decodes - digitizers such as the
 CAEN V1742, DRS4, H2GCROC3 or CALOROC - can be read without writing a new
 decoder. Detector-specific code (which packets to read, how to turn waveforms
@@ -22,7 +22,7 @@ from a running RCDAQ.
 ### Requirements
 
 The rcdaq event libraries (`libNoRootEvent` and the headers under `Event/`)
-from the `ePIC` branch of online_distribution. They are found through
+from online_distribution (github.com/eic/online_distribution). They are found through
 `$ONLINE_MAIN` (their usual installation prefix) or `CMAKE_PREFIX_PATH`. If
 they are not found, the plugin is skipped when EICrecon is configured:
 
@@ -35,7 +35,7 @@ To build and install the event libraries yourself, for example inside
 
 ~~~
 export ONLINE_MAIN=$EIC_SHELL_PREFIX
-git clone -b ePIC https://github.com/sPHENIX-Collaboration/online_distribution.git
+git clone https://github.com/eic/online_distribution.git
 cmake -S online_distribution/eventlibraries -B build-eventlibraries -DCMAKE_INSTALL_PREFIX=$ONLINE_MAIN
 cmake --build build-eventlibraries -j8
 cmake --install build-eventlibraries
@@ -106,7 +106,7 @@ as in the pmonitor manual) is enabled by un-commenting the marked lines, and
 runs on a file of RCDAQ's built-in test stream:
 
 ~~~
-dpipe -sT -df -o -n 1000 none test.evt
+dpipe -sT -df -n 1000 none test.evt
 ~~~
 
 The project finds the rcdaq plugin through `$EIC_MAIN` (default:
@@ -133,5 +133,5 @@ e.g. `-PMyPlugin:MyPluginHits:packetId=1003`.
 
 - RCDAQ home page (manuals, example data files):
   https://www.phenix.bnl.gov/~purschke/rcdaq/
-- online_distribution, branch `ePIC`:
-  https://github.com/sPHENIX-Collaboration/online_distribution
+- online_distribution:
+  https://github.com/eic/online_distribution
