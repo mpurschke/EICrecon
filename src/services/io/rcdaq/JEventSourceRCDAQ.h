@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+class Event;
 class Eventiterator;
 
 /// Reads rcdaq event files (.evt) via the online_distribution
@@ -30,6 +31,7 @@ public:
 
 private:
   std::unique_ptr<Eventiterator> m_iterator;
+  std::unique_ptr<Event> m_first_event; // read in Open(), handed out by the first Emit()
 };
 
 template <> double JEventSourceGeneratorT<JEventSourceRCDAQ>::CheckOpenable(std::string);

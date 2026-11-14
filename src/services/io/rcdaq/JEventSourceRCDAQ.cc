@@ -42,12 +42,25 @@ void JEventSourceRCDAQ::Open() {
   if (status != 0) {
     throw JException(std::format("Unable to open rcdaq file \"{}\"", GetResourceName()));
   }
+
+  // Read the first event right away: the iterator only notices that a file
+  // is not RCDAQ data (e.g. the legacy PHENIX format, PRDF) when it reads
+  // from it, and then returns no event, just as at the end of a file. Without
+  // this check, such a file would end the job as if it were empty.
+  m_first_event.reset(m_iterator->getNextEvent());
+  if (!m_first_event) {
+    throw JException(std::format("No readable events in \"{}\" - not an RCDAQ file, or empty",
+                                 GetResourceName()));
+  }
 }
 
 //------------------------------------------------------------------------------
 // Close
 //------------------------------------------------------------------------------
-void JEventSourceRCDAQ::Close() { m_iterator.reset(); }
+void JEventSourceRCDAQ::Close() {
+  m_first_event.reset();
+  m_iterator.reset();
+}
 
 //------------------------------------------------------------------------------
 // Emit
@@ -57,7 +70,7 @@ JEventSourceRCDAQ::Result JEventSourceRCDAQ::Emit(JEvent& event) {
   /// Calls to Emit are synchronized with each other, which means they can
   /// read and write state on the JEventSource without causing race conditions.
 
-  Event* evt = m_iterator->getNextEvent();
+  Event* evt = m_first_event ? m_first_event.release() : m_iterator->getNextEvent();
   if (evt == nullptr) {
     return Result::FailureFinished;
   }
